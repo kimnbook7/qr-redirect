@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>이동 중...</title>
+  <style>
+    body { font-family: Arial, "Noto Sans KR", sans-serif; margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#f7f7f7; color:#444; }
+    .box { width:min(92vw, 520px); background:#fff; padding:28px; border-radius:12px; box-shadow:0 4px 18px rgba(0,0,0,.08); text-align:center; }
+    .small { margin-top:12px; font-size:13px; color:#777; word-break:break-all; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div id="msg">이동 중입니다...</div>
+    <div id="detail" class="small"></div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  const msg = document.getElementById("msg");
+  const detail = document.getElementById("detail");
+
+  function showError(title, text) {
+    msg.textContent = title;
+    detail.textContent = text || "";
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const sheetCode = (params.get("s") || "").trim().toUpperCase();
+  const id = (params.get("id") || "").trim();
+
+  // 시트코드는 영문/숫자/_/- 만 허용합니다.
+  // 파일 경로 조작(../ 등)을 막기 위한 검사입니다.
+  if (!/^[A-Z0-9_-]+$/.test(sheetCode)) {
+    showError("잘못된 접근입니다.", "시트코드가 올바르지 않습니다.");
+    return;
+  }
+
+  // 현재 B안에서는 영구 ID를 숫자로 사용합니다.
+  if (!/^\d+$/.test(id)) {
+    showError("잘못된 접근입니다.", "영구 ID가 올바르지 않습니다.");
+    return;
+  }
+
+  // 예: data/SAFETY01.json
+  // cb 값은 브라우저/중간 캐시 때문에 이전 JSON이 오래 남는 것을 줄이기 위한 값입니다.
+  const dataUrl = "data/" + encodeURIComponent(sheetCode) + ".json?cb=" + Date.now();
+
+  fetch(dataUrl, { cache: "no-store" })
+    .then(function (response) {
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("등록되지 않은 시트코드입니다: " + sheetCode);
+        }
+        throw new Error("데이터 파일을 읽지 못했습니다. HTTP " + response.status);
+      }
+      return response.json();
+    })
+    .then(function (data) {
+      const destination = data && data[id] ? String(data[id]).trim() : "";
+
+      if (!destination) {
+        throw new Error("목적지 URL이 없습니다. (" + sheetCode + " / ID=" + id + ")");
+      }
+
+      // 안전상 http/https 주소만 이동 허용
+      let target;
+      try {
+        target = new URL(destination);
+      } catch (e) {
+        throw new Error("목적지 URL 형식이 올바르지 않습니다.");
+      }
+
+      if (target.protocol !== "http:" && target.protocol !== "https:") {
+        throw new Error("허용되지 않은 목적지 URL 형식입니다.");
+      }
+
+      window.location.replace(target.href);
+    })
+    .catch(function (error) {
+      showError("연결할 수 없습니다.", error.message);
+    });
+})();
+</script>
+</body>
+</html>
